@@ -1,0 +1,61 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+.venv/
+.env/
+
+# Django stuff:
+*.log
+*.pot
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.manifest
+*.spec
+*.sqlite3
+
+# Database
+*.sqlite3
+
+# Environment variables
+.env
+
+# Backup files
+*.bak
+*.swp
+
+# macOS specific
+.DS_Store
+
+# Node.js dependencies
+node_modules/
+
+# Build / distribution files
+build/
+dist/
+*.egg-info/
+*.eggs/
+
+# Local development
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Coverage reports
+coverage/
+.coverage
+.cache
+
+# Temporary files
+tmp/
+temp/
+
+# Ignore .env files (environment variables)
+.env
