@@ -18,20 +18,20 @@ env/
 *.so
 *.manifest
 *.spec
+
+# SQLite database
 *.sqlite3
 
-# Database
-*.sqlite3
+# Django migrations
+**/migrations/
 
-# Environment variables
+# Local environment variables
 .env
 
-# Backup files
-*.bak
-*.swp
-
-# macOS specific
-.DS_Store
+# Media and static files
+/media/
+staticfiles/
+static/
 
 # Node.js dependencies
 node_modules/
@@ -42,20 +42,37 @@ dist/
 *.egg-info/
 *.eggs/
 
-# Local development
-.vscode/
+# Testing / coverage reports
+.coverage
+*.cover
+*.log
+.tox/
+nosetests.xml
+coverage.xml
+*.coveragerc
+*.hypothesis/
+.pytest_cache/
+
+# Temporary files and backup files
+*.bak
+*.swp
+*.tmp
+*.temp
+*.log
+*.out
+*.pid
+
+# IDE and editor files
 .idea/
+.vscode/
 *.sublime-project
 *.sublime-workspace
 
-# Coverage reports
-coverage/
-.coverage
-.cache
+# macOS specific
+.DS_Store
 
-# Temporary files
-tmp/
-temp/
-
-# Ignore .env files (environment variables)
-.env
+# Windows specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
