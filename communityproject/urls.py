@@ -14,9 +14,24 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+# from django.contrib import admin
+# from django.urls import path
+
+# urlpatterns = [
+#     path('admin/', admin.site.urls),
+# ]
 from django.contrib import admin
+from django.conf.urls import include
 from django.urls import path
+from django.conf import settings
+from django.conf.urls.static import static
+# from inara.views import GoogleLoginView
 
 urlpatterns = [
+    # path('jet/', include('jet.urls', 'jet')),
+    # path('jet/dashboard/', include('jet.dashboard.urls', 'jet-dashboard')),
     path('admin/', admin.site.urls),
-]
+    path('', include('communityapp.urls')),
+    path("api/auth/", include("dj_rest_auth.urls")),  # endpoints provided by dj-rest-auth
+    # path("api/social/login/",GoogleLoginView.as_view(), name = "google"),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
