@@ -11,6 +11,8 @@ from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
 from functools import wraps
 import json
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 
 from django.core.files.storage import default_storage
 
@@ -25,6 +27,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode
 from django.contrib.auth import get_user_model
+from django.shortcuts import get_object_or_404
 
 
 from django.core.mail import send_mail
@@ -87,7 +90,7 @@ def registerUser(request):
     name = request.data.get('name')
     email = request.data.get('email')
     password = request.data.get('password')
-    roles = request.data.get('roles',[])  # Get the list of roles
+    roles = request.data.get('roles', [])  # Get the list of roles (strings)
 
     logger.info("Request: %s" % (request.data))
     try:
@@ -97,7 +100,11 @@ def registerUser(request):
         else:
             user = User.objects.create_user(username=email, email=email, password=password, name=name)
             user.is_active = False 
-            # user.roles = ','.join(roles)  
+            for role in roles:
+                # Check if the role doesn't already exist in user.roles
+                if role not in user.roles:
+                    user.roles.append({"role": role, "status": "pending"})  # Assuming you add roles as dicts
+
             user.save()
             
             # Send confirmation email
@@ -139,6 +146,54 @@ def registerUser(request):
 
     return JsonResponse(context, safe=False)
 
+@api_view(['GET', 'POST'])
+@permission_classes((AllowAny,))
+def forgotPassword(request):
+    email = request.data.get('email')
+    user = User.objects.filter(email=email).first()
+    
+    if not user:
+        return JsonResponse({'error': 'User not found'}, status=404)
+
+    token = default_token_generator.make_token(user)
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    reset_link = f'http://localhost:3000/update-password?uid={uid}&token={token}'
+
+    send_mail(
+        'Password Reset Request',
+        f'Click the link to reset your password: {reset_link}',
+        settings.DEFAULT_FROM_EMAIL,
+        [email],
+        fail_silently=False,
+    )
+
+    return JsonResponse({"ErrorCode": error_codes.SUCCESS, "ErrorMsg": error_codes.CREATE_MSG}, status=200)
+
+@api_view(['GET', 'POST'])
+@permission_classes((AllowAny,))
+def passwordConfirm(request):
+    # data = json.loads(request.body)
+    token = request.data.get('token')
+    new_password = request.data.get('newpassword')
+    uidb64 = request.data.get('uid')
+
+    if not token or not new_password or not uidb64:
+        return JsonResponse({'error': 'Token, new password, and UID are required'}, status=400)
+
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = get_user_model().objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, get_user_model().DoesNotExist):
+        return JsonResponse({'error': 'Invalid UID'}, status=400)
+
+    if not default_token_generator.check_token(user, token):
+        return JsonResponse({'error': 'Invalid token'}, status=400)
+
+    user.set_password(new_password)
+    user.save()
+
+    return JsonResponse({"ErrorCode": error_codes.SUCCESS, "ErrorMsg": error_codes.CREATE_MSG}, status=200)
+
 
 # Create your views here.
 # @api_view(['GET', 'POST'])
@@ -157,6 +212,40 @@ def activate(request, uidb64, token):
         return redirect('http://localhost:3000/login')  # Redirect to login page after activation
     else:
         return render(request, 'activation_invalid.html')
+
+# This decorator ensures only superadmins can access this function
+@api_view(['GET', 'POST'])
+@permission_classes((AllowAny,))
+def update_role_status(request):
+    context = {}
+    try:
+        user_id=request.data.get('id')
+        user = User.objects.get(pk=user_id)
+
+        role_updates = request.data.get('roles', [])  # Get updated roles and statuses from request
+
+        if not role_updates:
+            return JsonResponse({"ErrorCode": "ERROR", "ErrorMsg": "No roles provided"}, status=400)
+
+        # Update each role's status
+        updated_roles = []
+        for role_update in role_updates:
+            for existing_role in user.roles:
+                if existing_role['role'] == role_update['role']:
+                    existing_role['status'] = role_update['status']
+            updated_roles.append(existing_role)
+
+        user.roles = updated_roles
+        user.save()
+
+        result = {"ErrorCode": "SUCCESS", "ErrorMsg": "Roles updated successfully"}
+        context.update(result)
+    except User.DoesNotExist:
+        context.update({"ErrorCode": "ERROR", "ErrorMsg": "User not found"})
+    except Exception as e:
+        context.update({"ErrorCode": "ERROR", "ErrorMsg": str(e)})
+
+    return JsonResponse(context, safe=False)
 
 
 class CustomLoginView(LoginView):
@@ -469,4 +558,186 @@ def update_category(request):
     
     except Category.DoesNotExist:
         return JsonResponse({'error': 'Category not found'}, status=404)
+
+
+
+@csrf_exempt
+def create_business(request):
+    if request.method == 'POST':
+        try:
+            form_data = request.POST
+            logo = request.FILES.get('logo')
+            images = request.FILES.getlist('images')
+
+            # Extract social media links
+            socials = {
+                "facebook": form_data.get('b_facebook'),
+                "instagram": form_data.get('b_instagram'),
+                "youtube": form_data.get('b_youtube'),
+                "tiktok": form_data.get('b_tiktok'),
+                "twitter": form_data.get('b_twitter'),
+            }
+
+            # Create the business object
+            business = Business.objects.create(
+                name=form_data.get('b_name'),
+                description=form_data.get('b_description'),
+                phone=form_data.get('b_phone'),
+                email=form_data.get('b_email'),
+                website=form_data.get('b_website'),
+                operating_hours=form_data.get('b_operating_hours'),
+                location=form_data.get('b_location'),
+                city=form_data.get('b_city'),
+                state=form_data.get('b_state'),
+                zip=form_data.get('b_zip'),
+                discount_code=form_data.get('b_discount_code'),
+                discount_message=form_data.get('b_discount_message'),
+                user_id=form_data.get('user_id'),
+                socials=socials,
+                language=form_data.get('b_language'),
+                approved=form_data.get('approved') == '1',
+            )
+
+            
+            categories = request.POST.getlist('categories')
+            for category_id in categories:
+                CategoryBusiness.objects.create(business=business, category_id=category_id)
+
+            # Add tags
+            tags = form_data.get('b_tags')
+            if tags:
+                TagBusiness.objects.create(business=business, tag=tags)
+
+            # Upload and save logo
+            if logo:
+                logo_path = f'business/{business.id}/logo_{logo.name}'
+                default_storage.save(logo_path, logo)
+                business.logo = logo_path
+                business.save()
+
+            # Upload and save business images
+            image_urls = []
+            for img in images:
+                image_path = f'business/{business.id}/images_{img.name}'
+                default_storage.save(image_path, img)
+                image_urls.append(image_path)
+            business.images = ','.join(image_urls)
+            business.save()
+
+            return JsonResponse({
+                "ErrorCode": 0,  # Success code
+                "ErrorMsg": "Business created successfully.",
+                "data": {
+                    # "id": business.id,
+                    "name": business.name,
+                    # "logo": business.logo,
+                    # "images": business.images,
+                }
+            })
+
+        except Exception as e:
+            return JsonResponse({
+                "ErrorCode": 1,  # Error code
+                "ErrorMsg": str(e),
+            })
+
+    return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes((AllowAny,))
+def get_all_businesses(request):
+   
+    try:
+        businesses = Business.objects.all().values(
+            'id', 'name', 'description', 'phone', 'email', 'website', 
+            'operating_hours', 'location', 'city', 'state', 'zip', 
+            'discount_code', 'discount_message', 'user_id', 'socials', 
+            'language', 'approved', 'logo', 'images'
+        )
+        return JsonResponse({
+            "ErrorCode": 0,  # Success code
+            "ErrorMsg": "Businesses retrieved successfully.",
+            "data": list(businesses)
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 1,  # Error code
+            "ErrorMsg": str(e),
+        })
+@api_view(['GET', 'POST'])
+def get_business_by_id(request):
+    print(request.data)
+    print(request)
+
+    business_id=request.data.get('id')
     
+    if request.content_type != 'application/json':
+                return JsonResponse({
+                    "ErrorCode": 1,  # Error code
+                    "ErrorMsg": "Unsupported Media Type. Please send JSON.",
+                }, status=415)
+    try:
+        # Retrieve the business object by ID
+        business = get_object_or_404(Business, id=business_id)
+        
+        # Retrieve related data
+        categories = CategoryBusiness.objects.filter(business_id=business_id).values('category__id', 'category__name')
+        # reviews = Review.objects.filter(business_id=business_id, status='1', isArchived=False).values()
+        
+        # Check business approval status
+        user_id = request.data.get('user_id')  # You should get user_id from query parameters or authentication context
+        user_role = request.data.get('user_role')  # Get the user's role
+        
+        if business.approved != "1" and user_id:
+            if str(business.user_id) == user_id:
+                approval_status = "not approved but owner"
+            elif user_role == "1":
+                approval_status = "system owner"
+            else:
+                approval_status = "not approved"
+        else:
+            approval_status = "approved"
+        logo_url = business.logo.url if business.logo else None
+        images_urls = business.images.split(',') if business.images else []
+
+        # Construct the response
+        response_data = {
+            "ErrorCode": 0,  # Success code
+            "ErrorMsg": "Business details retrieved successfully.",
+            "data": {
+                "id": business.id,
+                "name": business.name,
+                "description": business.description,
+                "phone": business.phone,
+                "email": business.email,
+                "website": business.website,
+                "operating_hours": business.operating_hours,
+                "location": business.location,
+                "city": business.city,
+                "state": business.state,
+                "zip": business.zip,
+                "discount_code": business.discount_code,
+                "discount_message": business.discount_message,
+                "user_id": business.user_id,
+                "socials": business.socials,
+                "language": business.language,
+                "approved": approval_status,
+                "logo": logo_url,
+                "images": images_urls,
+                "categories": list(categories),
+                # "reviews": list(reviews),
+            }
+        }
+
+        return JsonResponse(response_data)
+
+   
+
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 2,  # Error code
+            "ErrorMsg": str(e),
+        })
+

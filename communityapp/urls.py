@@ -3,15 +3,25 @@ from .views import CustomLoginView
 
 from . import views
 urlpatterns = [
+    #auth
     path('registerUser',views.registerUser,name='registerUser'),
-    path('addAdmin', views.addAdmin, name = 'addAdmin'),
-    path('activate/<uidb64>/<token>/', views.activate, name='activate'),
     path('login/', CustomLoginView.as_view(), name='custom_login'),
+    path('update-category/', views.update_category, name='update_category'),
+    path('password-reset/', views.forgotPassword, name='password_reset_email'),
+    path('confirm-reset/', views.passwordConfirm, name='password_confirm'),
+    path('activate/<uidb64>/<token>/', views.activate, name='activate'),
+
+
+#admin
+    path('addAdmin', views.addAdmin, name = 'addAdmin'),
     path('add-category/', views.add_category, name='add_category'),
     path('get-categories/', views.get_categories, name='get_categories'),
     path('get-category/', views.get_category, name='get_category'),
-    path('update-category/', views.update_category, name='update_category'),
-
+   
+   #a busineess
+    path('create-business/', views.create_business, name='create_business'),
+    path('get-business/', views.get_all_businesses, name='get_all_businesses'),
+    path('get-specifibusiness/', views.get_business_by_id, name='get_business_by_id'),
 
 
     #  path("google/", GoogleLoginView.as_view(), name = "google"),

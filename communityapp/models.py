@@ -45,7 +45,7 @@ class User(AbstractBaseUser):
     is_active        = models.BooleanField(null=False, default=True) 
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
-    # roles = models.JSONField(default=list)
+    roles = models.JSONField(default=list)
 
 
     # history = CustomHistoricalRecords()
@@ -81,3 +81,47 @@ class Category(models.Model):
     id   = models.BigAutoField(primary_key=True)
     thumbnail = models.URLField(blank=True, null=True)
     cover = models.URLField(blank=True, null=True)
+
+
+class Business(models.Model):
+    name = models.CharField(max_length=255)
+    description = models.TextField()
+    phone = models.CharField(max_length=15)
+    email = models.EmailField()
+    website = models.URLField(blank=True, null=True)
+    operating_hours = models.CharField(max_length=255)
+    location = models.CharField(max_length=255)
+    city = models.CharField(max_length=255)
+    state = models.CharField(max_length=255)
+    zip = models.CharField(max_length=10)
+    discount_code = models.CharField(max_length=50, blank=True, null=True)
+    discount_message = models.TextField(blank=True, null=True)
+    logo = models.ImageField(upload_to="business/logos/", blank=True, null=True)
+    images = models.TextField(blank=True, null=True)  # URLs of images, stored as comma-separated string
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    approved = models.BooleanField(default=False)
+    socials = models.JSONField(blank=True, null=True)  # To store social links like facebook, instagram, etc.
+    language = models.CharField(max_length=50, blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+
+
+
+
+class Tag(models.Model):
+    name = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.name
+
+
+class CategoryBusiness(models.Model):
+    business = models.ForeignKey(Business, on_delete=models.CASCADE)
+    category = models.ForeignKey(Category, on_delete=models.CASCADE)
+
+
+class TagBusiness(models.Model):
+    business = models.ForeignKey(Business, on_delete=models.CASCADE)
+    tag = models.CharField(max_length=255)
