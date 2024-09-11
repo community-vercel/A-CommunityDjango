@@ -81,9 +81,20 @@ class Category(models.Model):
     id   = models.BigAutoField(primary_key=True)
     thumbnail = models.URLField(blank=True, null=True)
     cover = models.URLField(blank=True, null=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
 
 
 class Business(models.Model):
+    STATUS_PENDING = 0
+    STATUS_APPROVED = 1
+    STATUS_REJECTED = 2
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_APPROVED, 'Approved'),
+        (STATUS_REJECTED, 'Rejected'),
+    ]
+
     name = models.CharField(max_length=255)
     description = models.TextField()
     phone = models.CharField(max_length=15)
@@ -97,14 +108,38 @@ class Business(models.Model):
     discount_code = models.CharField(max_length=50, blank=True, null=True)
     discount_message = models.TextField(blank=True, null=True)
     logo = models.ImageField(upload_to="business/logos/", blank=True, null=True)
-    images = models.TextField(blank=True, null=True)  # URLs of images, stored as comma-separated string
+    images = models.TextField(blank=True, null=True) 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    approved = models.BooleanField(default=False)
+    approved = models.IntegerField(choices=STATUS_CHOICES, default=STATUS_PENDING)
     socials = models.JSONField(blank=True, null=True)  # To store social links like facebook, instagram, etc.
     language = models.CharField(max_length=50, blank=True, null=True)
+    isArchived = models.BooleanField(default=False)
+    isFeatured = models.BooleanField(default=False)  # Added field for featured status
 
     def __str__(self):
         return self.name
+class Review(models.Model):
+    PENDING = 0
+    APPROVED = 1
+    REJECTED = 2
+
+    STATUS_CHOICES = [
+        (PENDING, 'Pending'),
+        (APPROVED, 'Approved'),
+        (REJECTED, 'Rejected'),
+    ]
+
+    business = models.ForeignKey('Business', on_delete=models.CASCADE)
+    user = models.ForeignKey('User', on_delete=models.CASCADE)
+    title = models.CharField(max_length=255)
+    review = models.TextField()
+    rating = models.IntegerField()
+    status = models.IntegerField(choices=STATUS_CHOICES, default=PENDING)
+    review_files = models.TextField(blank=True, null=True)  # Comma-separated image URLs
+    created_at = models.DateTimeField(auto_now_add=True)
+    images = models.TextField(blank=True, null=True)  # Additional field if needed
+    email = models.EmailField(blank=True, null=True)
+    isArchived = models.BooleanField(default=False)
 
 
 

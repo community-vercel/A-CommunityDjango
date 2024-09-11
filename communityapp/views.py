@@ -28,6 +28,9 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
+from django.shortcuts import get_list_or_404
+from django.core.files.base import ContentFile
+from django.db.models import Avg, Count
 
 
 from django.core.mail import send_mail
@@ -324,105 +327,6 @@ class CustomLoginView(LoginView):
             return Response(response_data, status=status.HTTP_200_OK)
 
         return response
-# Create your views here.
-# @api_view(['GET', 'POST'])
-# @permission_classes((AllowAny,))
-# def registerUser(request):
-#     context = {}
-#     name=request.data['name']
-#     email=request.data['email']
-#     password=request.data['password']
-#     # phone=request.data['phone']
-#     # address=request.data['address']
-#     logger.info("Request: %s" %(request.data))
-#     try:
-#         if(User.objects.filter(email=email).exists()):
-#             result = {"ErrorCode": error_codes.ERROR, "ErrorMsg": error_codes.EMAIL_ALREADY_EXIST}
-#             context.update(result)
-#         else:
-#             createuser = User.objects.create(username=email,email=email,password=make_password(password),
-#             # ,phone=phone,address=address,name=name
-#             )
-#             result = {"ErrorCode": error_codes.SUCCESS, "ErrorMsg": error_codes.CREATE_MSG}
-#             context.update(result)
-           
-#     except Exception as e:
-#         result = {"ErrorCode": error_codes.ERROR, "ErrorMsg": error_codes.NOT_ADD_MSG}
-#         context.update(result)
-#         logger.error("Exception in registerUser: %s " %(str(e)))
-#             # traceback.print_exc()
-#     # print(context)
-#     return JsonResponse(context, safe=False)
-
-
-
-
-# def registerUser(request):
-#     context = {}
-#     name = request.data['name']
-#     email = request.data['email']
-#     password = request.data['password']
-#     logger.info("Request: %s" % (request.data))
-#     try:
-#         if User.objects.filter(email=email).exists():
-#             result = {"ErrorCode": error_codes.ERROR, "ErrorMsg": error_codes.EMAIL_ALREADY_EXIST}
-#             context.update(result)
-#         else:
-#             user = User.objects.create(
-#                 username=email,
-#                 email=email,
-#                 password=make_password(password),
-#                 is_active=False  # Set to False until email is confirmed
-#             )
-#             # Generate a unique token for email confirmation
-#             token = get_random_string(length=32)
-#             user.totp_key = token
-#             user.save()
-
-#             # Construct the email confirmation link
-#             confirmation_url = request.build_absolute_uri(
-#                 reverse('confirm_email') + f"?token={token}&email={email}"
-#             )
-
-#             # Send the email
-#             send_mail(
-#                 'Confirm your email address',
-#                 f'Hi {name},\n\nPlease confirm your email address by clicking the following link:\n\n{confirmation_url}\n\nThank you!',
-#                 'noreply@example.com',
-#                 [email],
-#                 fail_silently=False,
-#             )
-
-#             result = {"ErrorCode": error_codes.SUCCESS, "ErrorMsg": "Please check your email to confirm your registration."}
-#             context.update(result)
-           
-#     except Exception as e:
-#         result = {"ErrorCode": error_codes.ERROR, "ErrorMsg": error_codes.NOT_ADD_MSG}
-#         context.update(result)
-#         logger.error("Exception in registerUser: %s " % (str(e)))
-#     return JsonResponse(context, safe=False)
-
-
-# from django.shortcuts import render
-# from django.http import HttpResponse
-# from django.contrib.auth import get_user_model
-
-# User = get_user_model()
-
-# def confirm_email(request):
-#     token = request.GET.get('token')
-#     email = request.GET.get('email')
-#     try:
-#         user = User.objects.get(email=email, totp_key=token)
-#         if user:
-#             user.is_active = True  # Activate the user
-#             user.totp_key = None  # Clear the token
-#             user.save()
-#             return HttpResponse("Your email has been confirmed. You can now log in.")
-#     except User.DoesNotExist:
-#         return HttpResponse("Invalid confirmation link or the email has already been confirmed.")
-
-#     return HttpResponse("An error occurred during email confirmation.")
 
 
 @api_view(['GET', 'POST'])
@@ -463,6 +367,7 @@ def addAdmin(request):
 
 def add_category(request):
     name = request.POST.get('category')
+    userid=request.POST.get('userid')
     thumbnail_file = request.FILES.get('thumbnail')
     cover_file = request.FILES.get('cover')
 
@@ -484,29 +389,13 @@ def add_category(request):
     category = Category.objects.create(
         name=name,
         thumbnail=thumbnail_url,
-        cover=cover_url
+        cover=cover_url,
+        user_id=userid
     )
 
     return JsonResponse({'message': 'Added Successfully', 'category_id': category.id})
 
-    name = request.POST.get('category')
-    thumbnail_url = request.POST.get('thumbnail')
-    cover_url = request.POST.get('cover')
-
-    if not name:
-        return JsonResponse({'error': 'Category name is required'}, status=400)
     
-    if Category.objects.filter(name=name).exists():
-        return JsonResponse({'error': 'Category already exists'}, status=400)
-    
-    # Create a new Category
-    category = Category.objects.create(
-        name=name,
-        thumbnail=thumbnail_url,
-        cover=cover_url
-    )
-
-    return JsonResponse({"ErrorCode": error_codes.SUCCESS, "ErrorMsg": error_codes.CREATE_MSG})
     
 @api_view(['GET', 'POST'])
 def get_categories(request):
@@ -559,7 +448,43 @@ def update_category(request):
     except Category.DoesNotExist:
         return JsonResponse({'error': 'Category not found'}, status=404)
 
+@api_view(['GET', 'POST'])
+@permission_classes((AllowAny,))
 
+def get_usercategory(request):
+    try:
+        user_id = request.data.get('user_id')
+        
+        if not user_id:
+            return JsonResponse({
+                "ErrorCode": 1,  # Error code
+                "ErrorMsg": "user_id parameter is required.",
+            })
+
+        categories = Category.objects.filter(user_id=user_id)
+        
+        # Prepare the data to return
+        categories_list = []
+        for category in categories:
+           
+            categories_list.append({
+            'id': category.id,
+            'name': category.name,
+            'thumbnail': category.thumbnail,
+            'cover': category.cover,
+            })
+        
+        return JsonResponse({
+            "ErrorCode": 0,  # Success code
+            "ErrorMsg": "Businesses retrieved successfully.",
+            "data": categories_list
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 1,  # Error code
+            "ErrorMsg": str(e),
+        })
 
 @csrf_exempt
 def create_business(request):
@@ -649,7 +574,7 @@ def create_business(request):
 def get_all_businesses(request):
    
     try:
-        businesses = Business.objects.all().values(
+        businesses = Business.objects.filter(isArchived=False).values(
             'id', 'name', 'description', 'phone', 'email', 'website', 
             'operating_hours', 'location', 'city', 'state', 'zip', 
             'discount_code', 'discount_message', 'user_id', 'socials', 
@@ -659,6 +584,61 @@ def get_all_businesses(request):
             "ErrorCode": 0,  # Success code
             "ErrorMsg": "Businesses retrieved successfully.",
             "data": list(businesses)
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 1,  # Error code
+            "ErrorMsg": str(e),
+        })
+
+@api_view(['GET', 'POST'])
+@permission_classes((AllowAny,))
+
+def get_businesses_for_user(request):
+    try:
+        user_id = request.data.get('user_id')
+        
+        if not user_id:
+            return JsonResponse({
+                "ErrorCode": 1,  # Error code
+                "ErrorMsg": "user_id parameter is required.",
+            })
+
+        # Fetch businesses for the specific user
+        businesses = Business.objects.filter(user_id=user_id,isArchived=False)
+        
+        # Prepare the data to return
+        business_list = []
+        for business in businesses:
+            logo_url = business.logo.url if business.logo else None
+            images_urls = business.images.split(',') if business.images else []
+
+            business_list.append({
+                "id": business.id,
+                "name": business.name,
+                "description": business.description,
+                "phone": business.phone,
+                "email": business.email,
+                "website": business.website,
+                "operating_hours": business.operating_hours,
+                "location": business.location,
+                "city": business.city,
+                "state": business.state,
+                "zip": business.zip,
+                "discount_code": business.discount_code,
+                "discount_message": business.discount_message,
+                "user_id": business.user_id,
+                "language": business.language,
+                "approved": business.approved,
+                "logo": logo_url,
+                "images": images_urls,
+            })
+        
+        return JsonResponse({
+            "ErrorCode": 0,  # Success code
+            "ErrorMsg": "Businesses retrieved successfully.",
+            "data": business_list
         })
 
     except Exception as e:
@@ -684,21 +664,30 @@ def get_business_by_id(request):
         
         # Retrieve related data
         categories = CategoryBusiness.objects.filter(business_id=business_id).values('category__id', 'category__name')
-        # reviews = Review.objects.filter(business_id=business_id, status='1', isArchived=False).values()
-        
+        reviews = Review.objects.filter(business_id=business_id, status='1').values()
+        stats = Review.objects.filter(business_id=business_id, status=Review.APPROVED).aggregate(
+            avg_rating=Avg('rating'),
+            total_count=Count('id')
+        )
+
+        # Combine average rating and total count into a single object
+        statistics = {
+            "avg_rating": stats['avg_rating'] if stats['avg_rating'] is not None else 0,
+            "total_count": stats['total_count'] if stats['total_count'] is not None else 0
+        }
         # Check business approval status
         user_id = request.data.get('user_id')  # You should get user_id from query parameters or authentication context
         user_role = request.data.get('user_role')  # Get the user's role
         
-        if business.approved != "1" and user_id:
-            if str(business.user_id) == user_id:
-                approval_status = "not approved but owner"
-            elif user_role == "1":
-                approval_status = "system owner"
-            else:
-                approval_status = "not approved"
-        else:
-            approval_status = "approved"
+        # if business.approved != "1" and user_id:
+        #     if str(business.user_id) == user_id:
+        #         approval_status = "not approved but owner"
+        #     elif user_role == "1":
+        #         approval_status = "system owner"
+        #     else:
+        #         approval_status = "not approved"
+        # else:
+        #     approval_status = "approved"
         logo_url = business.logo.url if business.logo else None
         images_urls = business.images.split(',') if business.images else []
 
@@ -723,11 +712,12 @@ def get_business_by_id(request):
                 "user_id": business.user_id,
                 "socials": business.socials,
                 "language": business.language,
-                "approved": approval_status,
+                "approved": business.approved,
                 "logo": logo_url,
                 "images": images_urls,
                 "categories": list(categories),
-                # "reviews": list(reviews),
+                "reviews": list(reviews),
+                "statistics": statistics,
             }
         }
 
@@ -741,3 +731,242 @@ def get_business_by_id(request):
             "ErrorMsg": str(e),
         })
 
+@api_view(['GET', 'POST'])
+def update_businesses(request):
+    try:
+        update_data = request.data
+        
+        for data in update_data:
+            business_id = data.get('id')
+            approved = data.get('approved')
+            is_archived = data.get('isArchived')
+            is_featured = data.get('isFeatured')
+            
+            try:
+                business = Business.objects.get(id=business_id)
+                
+                if approved is not None:
+                    business.approved = int(approved)
+                if is_archived is not None:
+                    business.isArchived = is_archived
+                if is_featured is not None:
+                    business.isFeatured = is_featured
+                
+                business.save()
+            except Business.DoesNotExist:
+                return JsonResponse({
+                    "ErrorCode": 1,
+                    "ErrorMsg": f"Business with ID {business_id} not found.",
+                }, status=404)
+
+        return JsonResponse({
+            "ErrorCode": 0,
+            "ErrorMsg": "Businesses updated successfully.",
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 1,
+            "ErrorMsg": str(e),
+        }, status=500)
+
+@api_view(['GET', 'POST'])
+@permission_classes((AllowAny,))
+def update_business_status(request):
+    try:
+        approved_status = request.data.get('approved')
+        business_id=request.data.get('id')
+        if approved_status is None:
+            return JsonResponse({
+                "ErrorCode": 1,  # Error code
+                "ErrorMsg": "Missing 'approved' status.",
+            }, status=400)
+
+        # Fetch the business to update
+        business = Business.objects.filter(id=business_id).first()
+        
+        if not business:
+            return JsonResponse({
+                "ErrorCode": 2,  # Error code
+                "ErrorMsg": "Business not found.",
+            }, status=404)
+
+        # Update the business status
+        business.approved = approved_status
+        business.save()
+
+        return JsonResponse({
+            "ErrorCode": 0,  # Success code
+            "ErrorMsg": "Business status updated successfully.",
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 1,  # Error code
+            "ErrorMsg": str(e),
+        }, status=500)
+
+@api_view(['GET', 'POST'])
+@permission_classes((AllowAny,))
+def create_review(request):
+    try:
+        user_id = request.data.get('user_id')
+        business_id = request.data.get('business_id')
+        title = request.data.get('title')
+        review = request.data.get('review')
+        rating = request.data.get('rating')
+        status = request.data.get('status', 0)  # Default to 0 if not provided
+        images = request.data.get('images', []) 
+       
+        # List of image files
+        email=request.data.get('email')
+        # Create review
+        review_instance = Review.objects.create(
+            business_id=business_id,
+            user_id=user_id,
+            title=title,
+            review=review,
+            rating=rating,
+            status=status,
+            email=email
+        )
+
+        # Upload images
+        if 'images' in request.FILES:
+            image_files = request.FILES.getlist('images')
+            image_urls = []
+            for image in image_files:
+                image_name = f"{review_instance.id}/{image.name}"
+                image_path = default_storage.save(image_name, ContentFile(image.read()))
+                image_url = default_storage.url(image_path)
+                image_urls.append(image_url)
+            
+
+            # Update review with image URLs
+            review_instance.review_files = ",".join(image_urls)
+            review_instance.save()
+
+        return JsonResponse({
+            "ErrorCode": 0,  # Success code
+            "ErrorMsg": "Review added successfully.",
+            "data": {
+                "id": review_instance.id,
+                "title": review_instance.title,
+                "review": review_instance.review,
+                "rating": review_instance.rating,
+                "status": review_instance.status,
+                "review_files": review_instance.review_files,
+            }
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 1,  # Error code
+            "ErrorMsg": str(e),
+        }, status=500)
+        
+@api_view(['GET', 'POST'])
+@permission_classes((AllowAny,))        
+def get_reviews(request):
+    try:
+        # Retrieve all reviews including related business data
+        reviews = Review.objects.filter(isArchived=False).select_related('business').values(
+            'id', 'title', 'review','email', 'status','rating', 'review_files', 'created_at',
+            'business__id',  # Include related business ID
+            'business__name'  # Include related business name
+        )
+        
+        return JsonResponse({
+            "ErrorCode": 0,  # Success code
+            "ErrorMsg": "Reviews retrieved successfully.",
+            "data": list(reviews)
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 1,  # Error code
+            "ErrorMsg": str(e),
+        }, status=500)
+
+@api_view(['GET', 'POST'])
+def update_reviews(request):
+    try:
+        update_data = request.data
+        
+        # Process each review update request
+        for review_data in update_data:
+            review_id = review_data.get('id')
+            status = review_data.get('status')
+            is_archived = review_data.get('isArchived')
+
+            # Retrieve the review and update its fields
+            review = Review.objects.get(id=review_id)
+            if status is not None:
+                review.status = int(status)
+            if is_archived is not None:
+                review.isArchived = is_archived
+            
+            review.save()
+        
+        return JsonResponse({
+            "ErrorCode": 0,  # Success code
+            "ErrorMsg": "Reviews updated successfully.",
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 1,  # Error code
+            "ErrorMsg": str(e),
+        }, status=500)
+@api_view(['GET', 'POST'])
+def archive_business(request):
+    try:
+        # Extract business ID from request data
+        business_id = request.data.get('id')
+        
+        # Retrieve the business and update its isArchived status
+        business = Business.objects.get(id=business_id)
+        business.isArchived = True
+        business.save()
+
+        return JsonResponse({
+            "ErrorCode": 0,  # Success code
+            "ErrorMsg": "Business archived successfully.",
+        })
+
+    except Business.DoesNotExist:
+        return JsonResponse({
+            "ErrorCode": 1,  # Error code
+            "ErrorMsg": "Business not found.",
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 1,  # Error code
+            "ErrorMsg": str(e),
+        }, status=500)
+
+@api_view(['GET', 'POST'])
+def category_count_view(request):
+    # Fetch all categories
+    categories = get_list_or_404(Category)
+
+    # Fetch counts for each category
+    category_counts = CategoryBusiness.objects.filter(
+        business__approved=True
+    ).values('category_id').annotate(count=models.Count('category_id'))
+
+    # Convert category counts to a dictionary
+    count_dict = {item['category_id']: item['count'] for item in category_counts}
+
+    # Combine category data with business counts
+    data = []
+    for category in categories:
+        data.append({
+            'id': category.id,
+            'name': category.name,
+            'thumbnail': category.thumbnail,
+            'cover': category.cover,
+            'business_count': count_dict.get(category.id, 0)
+        })
+
+    return JsonResponse(data, safe=False)
