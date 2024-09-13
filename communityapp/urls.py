@@ -34,7 +34,7 @@ urlpatterns = [
     path('create-review/', views.create_review, name='create-review'),
     path('get-reviews/', views.get_reviews, name='get_reviews_for_business'),
     path('update-reviews/', views.update_reviews, name='update_reviews'),
-
+    path('test/', views.test_view),
 
 
     #  path("google/", GoogleLoginView.as_view(), name = "google"),
