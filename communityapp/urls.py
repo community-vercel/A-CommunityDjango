@@ -36,6 +36,7 @@ urlpatterns = [
     path('create-review/', views.create_review, name='create-review'),
     path('get-reviews/', views.get_reviews, name='get_reviews_for_business'),
     path('update-reviews/', views.update_reviews, name='update_reviews'),
+
     path('get-business-rating-stats/', views.get_business_rating_stats, name='get-business-rating-stats'),
     path('toggle-favorite/', views.toggle_favorite, name='toggle_favorite'),
     path('check-toggle-favorite/', views.check_and_toggle_favorite, name='check_toggle_favorite'),
@@ -43,6 +44,7 @@ urlpatterns = [
 
     path('get-all-users/', views.get_all_users, name='get_all_users'),
     path('fetch-favorites/', views.fetch_favorites_for_user, name='fetch_favorites_for_user'),
+
 
     #  path("google/", GoogleLoginView.as_view(), name = "google"),
     # path('api/auth/password/reset/confirm/<str:uidb64>/<str:token>', PasswordResetConfirmView.as_view(),name='password_reset_confirm'),
