@@ -114,7 +114,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'communityapp',
         'USER': 'adiil',
-        'PASSWORD': 'communityapp',
+        'PASSWORD': 'community',
         'HOST': 'localhost',  # Use the IP address of your PostgreSQL server if it's not local
         'PORT': '5432',       # Default PostgreSQL port
     }
