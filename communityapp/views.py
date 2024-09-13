@@ -945,6 +945,392 @@ def archive_business(request):
             "ErrorMsg": str(e),
         }, status=500)
 
+
+
+@api_view(['GET', 'POST'])
+def get_businesses_by_category(request):
+    category_id=request.data.get('id')
+    try:
+        from_value = int(request.data.get('from', 0))
+        to_value = int(request.data.get('to', 10))
+
+        category_businesses = CategoryBusiness.objects.filter(
+            category_id=category_id,
+            business__approved=True,
+            business__isArchived=False
+        ).select_related('category', 'business')[from_value:to_value]
+
+        businesses_data = [
+                {
+                "category_name":cb.category.name,
+                "business_id": cb.business.id,
+                "business_name": cb.business.name,
+                "business_approved": cb.business.approved,
+                "business_isArchived": cb.business.isArchived,
+                "description": cb.business.description,
+                "phone": cb.business.phone,
+                "email": cb.business.email,
+                "website": cb.business.website,
+                "operating_hours": cb.business.operating_hours,
+                "location": cb.business.location,
+                "city": cb.business.city,
+                "state": cb.business.state,
+                "zip": cb.business.zip,
+                "discount_code": cb.business.discount_code,
+                "discount_message": cb.business.discount_message,
+                "logo": cb.business.logo.url,
+                # "images": cb.business.images,
+                "language": cb.business.language,
+                "isFeatured": cb.business.isFeatured,
+                # Add other business fields you need here
+                } for cb in category_businesses
+                ]
+
+        if not businesses_data:
+            return JsonResponse({
+                "ErrorCode": 1,
+                "ErrorMsg": "No businesses found for this category.",
+            })
+
+        return JsonResponse({
+            "ErrorCode": 0,
+            "ErrorMsg": "Businesses retrieved successfully.",
+            "data": businesses_data,
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 1,
+            "ErrorMsg": str(e),
+        }, status=500)
+
+@api_view(['GET', 'POST'])
+def fetch_more_businesses_by_category(request):
+    try:
+        # Get data from the request body
+        category_id = request.data.get('id')
+        from_value = int(request.data.get('from', 0))
+        to_value = int(request.data.get('to', 10))
+
+        # Ensure `from_value` and `to_value` are valid
+        if from_value < 0 or to_value <= from_value:
+            return JsonResponse({
+                "ErrorCode": 1,
+                "ErrorMsg": "Invalid pagination values.",
+            })
+
+        # Fetch businesses for the specified category that are approved and not archived
+        category_businesses = CategoryBusiness.objects.filter(
+            category_id=category_id,
+            business__approved=True,
+            business__isArchived=False
+        ).select_related('business').order_by('business__id')[from_value:to_value]
+
+        businesses_data = [
+            {
+            
+            "business_id": cb.business.id,
+            "business_name": cb.business.name,
+            "business_approved": cb.business.approved,
+            "business_isArchived": cb.business.isArchived,
+            "description": cb.business.description,
+            "phone": cb.business.phone,
+            "email": cb.business.email,
+            "website": cb.business.website,
+            "operating_hours": cb.business.operating_hours,
+            "location": cb.business.location,
+            "city": cb.business.city,
+            "state": cb.business.state,
+            "zip": cb.business.zip,
+            "discount_code": cb.business.discount_code,
+            "discount_message": cb.business.discount_message,
+            "logo": cb.business.logo.url,
+            "language": cb.business.language,
+            "isFeatured": cb.business.isFeatured,
+            # Add other business fields you need here
+            } for cb in category_businesses
+            ]
+
+
+        if not businesses_data:
+            return JsonResponse({
+                "ErrorCode": 1,
+                "ErrorMsg": "No more businesses found.",
+            })
+
+        return JsonResponse({
+            "ErrorCode": 0,
+            "ErrorMsg": "Businesses retrieved successfully.",
+            "data": businesses_data,
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 1,
+            "ErrorMsg": str(e),
+        }, status=500)
+@api_view(['GET', 'POST'])
+def get_business_rating_stats(request):
+    try:
+        # Get the business ID from the request body
+        business_id = request.data.get('business_id_param')
+        
+        # Fetch the business
+        business = Business.objects.get(id=business_id)
+        
+        # Fetch the average rating for this business
+        stats = Review.objects.filter(business_id=business_id).aggregate(
+                    avg_rating=Avg('rating'),
+                    review_count=Count('id')
+                )
+        # Prepare the business details and stats
+        business_data = {
+            "id": business.id,
+            "name": business.name,
+            "description": business.description,
+            "logo": business.logo.url if business.logo else None,
+            "phone": business.phone,
+            "website": business.website,
+            "email": business.email,
+            "isFeatured": business.isFeatured,  # Ensure this field exists in the model
+            "discount_code": business.discount_code,  # Ensure this field exists in the model
+            "stats": stats,
+            "isFavorite": False,  # Logic to determine if the business is marked as favorite by the user
+        }
+
+        return JsonResponse({
+            "ErrorCode": 0,
+            "ErrorMsg": "Business details retrieved successfully.",
+            "data": business_data
+        })
+
+
+        
+
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 1,  # Error code
+            "ErrorMsg": str(e),
+        }, status=500)
+@api_view(['GET', 'POST'])
+def toggle_favorite(request):
+    user_id = request.data.get('user_id')
+    business_id = request.data.get('business_id')
+    
+    if not user_id or not business_id:
+        return Response({'error': 'user_id and business_id are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        user = get_object_or_404(User, id=user_id)
+        business = get_object_or_404(Business, id=business_id)
+        
+        favorite, created = Favorite.objects.get_or_create(user=user, business=business)
+        
+        if not created:
+            # If the favorite already exists, delete it
+            favorite.delete()
+            return Response({'message': 'Favorite removed'}, status=status.HTTP_200_OK)
+        else:
+            # If the favorite did not exist, it has been created
+            return Response({'message': 'Favorite added'}, status=status.HTTP_201_CREATED)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+@api_view(['GET', 'POST']) 
+def check_and_toggle_favorite(request):
+    try:
+        user_id = request.data.get('user_id')
+        business_id = request.data.get('business_id')
+
+        if not user_id or not business_id:
+            return JsonResponse({'ErrorCode': 1, 'ErrorMsg': 'Invalid data.'}, status=400)
+
+        # Check if the favorite exists
+        favorite = Favorite.objects.filter(user_id=user_id, business_id=business_id).first()
+
+        if favorite:
+            # If favorite exists, delete it (unfavorite)
+            favorite.delete()
+            is_favorite = False
+        else:
+            # If favorite does not exist, create it (favorite)
+            Favorite.objects.create(user_id=user_id, business_id=business_id)
+            is_favorite = True
+
+        return JsonResponse({
+            'ErrorCode': 0,
+            'ErrorMsg': 'Favorite status toggled successfully.',
+            'is_favorite': is_favorite
+        })
+
+    except Exception as e:
+        return JsonResponse({'ErrorCode': 1, 'ErrorMsg': str(e)}, status=500)
+    
+@api_view(['GET', 'POST'])
+def search_businesses(request):
+    if request.method != 'POST':
+        return JsonResponse({
+            "ErrorCode": 1,
+            "ErrorMsg": "Invalid request method. Use POST."
+        }, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        category_id = data.get('category_id')
+        selected_state = data.get('state')
+        selected_city = data.get('city')
+        selected_language = data.get('language')
+        selected_rating = data.get('rating')
+        discount = data.get('discount') == 'true'
+        
+        # Base queryset
+        queryset = Business.objects.filter(
+            approved=True,
+            isArchived=False
+        )
+        
+        if category_id:
+            queryset = queryset.filter(
+                categorybusiness__category_id=category_id
+            )
+        
+        if discount:
+            queryset = queryset.exclude(discount_code__isnull=True).exclude(discount_code='')
+        
+        if selected_language:
+            queryset = queryset.filter(language=selected_language)
+        
+        if selected_state:
+            queryset = queryset.filter(state=selected_state)
+        
+        if selected_city:
+            queryset = queryset.filter(city=selected_city)
+        
+        if selected_rating:
+            try:
+                selected_rating = int(selected_rating)
+            except ValueError:
+                return JsonResponse({
+                    "ErrorCode": 1,
+                    "ErrorMsg": "Invalid rating value.",
+                }, status=400)
+            
+            business_ids_with_rating = Review.objects.filter(
+                rating__gte=selected_rating
+            ).values_list('business_id', flat=True).distinct()
+            
+            if business_ids_with_rating:
+                queryset = queryset.filter(id__in=business_ids_with_rating)
+            else:
+                return JsonResponse({
+                    "ErrorCode": 0,
+                    "ErrorMsg": "No businesses match the criteria.",
+                    "data": []
+                })
+        
+        businesses = queryset.values(
+            'id', 'name', 'description', 'phone', 'email', 'website', 
+            'operating_hours', 'location', 'city', 'state', 'zip', 
+            'discount_code', 'discount_message', 'logo', 'images', 
+            'language', 'isFeatured'
+        )
+        
+        return JsonResponse({
+            "ErrorCode": 0,
+            "ErrorMsg": "Businesses retrieved successfully.",
+            "data": list(businesses)
+        })
+    
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 1,
+            "ErrorMsg": str(e),
+        }, status=500)
+        
+        
+@api_view(['GET', 'POST'])
+def get_all_users(request):
+    try:
+        users = User.objects.exclude(role=User.SUPER_ADMIN)
+        
+        # Transform the data
+        transformed_data = [
+            {
+                'id': user.id,
+                'role': user.role,
+                # 'pre_approved': getattr(user, 'pre_approved', False),
+                'name': user.name,
+                'email': user.email,
+            }
+            for user in users
+        ]
+
+        return JsonResponse({
+            'ErrorCode': 0,  # Success code
+            'ErrorMsg': 'Users retrieved successfully.',
+            'data': transformed_data
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({
+            'ErrorCode': 1,  # Error code
+            'ErrorMsg': str(e),
+        }, status=500)
+@api_view(['GET', 'POST'])
+def fetch_favorites_for_user(request):
+    user_id = request.GET.get('user_id')
+    
+    if not user_id:
+        return JsonResponse({
+            'ErrorCode': 1,  # Error code
+            'ErrorMsg': 'User ID is required.',
+        }, status=400)
+
+    try:
+        # Fetch the favorites and related business data
+        favorites = Favorite.objects.filter(user_id=user_id).select_related('business')
+        favorites_data = [
+            {
+                'id': favorite.id,
+                'user_id': favorite.user_id,
+                'business': {
+                    'business_id': favorite.business.id,
+                    'business_name': favorite.business.name,
+                    'description': favorite.business.description,
+                    'phone': favorite.business.phone,
+                    'email': favorite.business.email,
+                    'website': favorite.business.website,
+                    'operating_hours': favorite.business.operating_hours,
+                    'location': favorite.business.location,
+                    'city': favorite.business.city,
+                    'state': favorite.business.state,
+                    'zip': favorite.business.zip,
+                    'discount_code': favorite.business.discount_code,
+                    'discount_message': favorite.business.discount_message,
+                    'language': favorite.business.language,
+                    'approved': favorite.business.approved,
+                    'logo': favorite.business.logo.url if favorite.business.logo else None,
+                    'images': favorite.business.images.split(',') if favorite.business.images else [],
+                    'isFavorite':True
+                }
+            }
+            for favorite in favorites
+        ]
+        
+        return JsonResponse({
+            'ErrorCode': 0,  # Success code
+            'ErrorMsg': 'Favorites retrieved successfully.',
+            'data': favorites_data
+        }, status=200)
+        
+    except Exception as e:
+        return JsonResponse({
+            'ErrorCode': 1,  # Error code
+            'ErrorMsg': str(e),
+        }, status=500)
+
+
 @api_view(['GET', 'POST'])
 def category_count_view(request):
     # Fetch all categories

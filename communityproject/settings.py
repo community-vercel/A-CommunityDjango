@@ -178,7 +178,10 @@ CORS_ALLOW_ALL_ORIGINS = True
 # settings.py
 
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",  # Add the origin of your frontend application
+    "http://localhost:3000",
+    "http://165.22.178.52/django/"
+    
+    # Add the origin of your frontend application
     # Add other trusted origins if necessary
 ]
 
