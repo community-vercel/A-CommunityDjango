@@ -30,8 +30,8 @@ SECRET_KEY = 'django-insecure-7z(_boe9612%+c*ebt3luaz&yjvieena01+1(t-m-+6afv_n7*
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
 
+ALLOWED_HOSTS = ['165.22.178.52','165.22.178.52/api', 'localhost', '127.0.0.1']
 
 # Application definition
 
@@ -108,14 +108,15 @@ WSGI_APPLICATION = 'communityproject.wsgi.application'
 #         'NAME': BASE_DIR / 'db.sqlite3',
 #     }
 # }
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'communityapp',
         'USER': 'adiil',
-        'PASSWORD': 'community',
-        'HOST': 'localhost',
-        'PORT': '5432',
+        'PASSWORD': 'communityapp',
+        'HOST': 'localhost',  # Use the IP address of your PostgreSQL server if it's not local
+        'PORT': '5432',       # Default PostgreSQL port
     }
 }
 
@@ -153,16 +154,14 @@ USE_TZ = True
 SITE_ID = 1
 
 
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.1/howto/static-files/
-
-STATIC_URL = 'static/'
-# STATIC_URL = '/static/'
+STATIC_URL = '/api/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
-# Media Files
+
+MEDIA_URL = '/api/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-MEDIA_URL = '/media/'
+
+
+
 AUTH_USER_MODEL = 'communityapp.User'
 
 # settings.py
@@ -178,10 +177,16 @@ CORS_ALLOW_ALL_ORIGINS = True
 # settings.py
 
 CSRF_TRUSTED_ORIGINS = [
+<<<<<<< HEAD
     "http://localhost:3000",
     "http://165.22.178.52/django/"
     
     # Add the origin of your frontend application
+=======
+    "http://localhost:3000",  # Add the origin of your frontend application
+    "http://165.22.178.52",
+"http://165.22.178.52/django",
+>>>>>>> 735ccfcc59b37e8279312fa3cb97fe5b4b3bea45
     # Add other trusted origins if necessary
 ]
 

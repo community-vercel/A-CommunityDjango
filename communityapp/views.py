@@ -13,6 +13,7 @@ from functools import wraps
 import json
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.http import HttpResponse
 
 from django.core.files.storage import default_storage
 
@@ -171,6 +172,9 @@ def forgotPassword(request):
     )
 
     return JsonResponse({"ErrorCode": error_codes.SUCCESS, "ErrorMsg": error_codes.CREATE_MSG}, status=200)
+def test_view(request):
+    return HttpResponse("Test view working!")
+
 
 @api_view(['GET', 'POST'])
 @permission_classes((AllowAny,))
