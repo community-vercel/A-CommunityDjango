@@ -14,14 +14,14 @@ urlpatterns = [
 
 #admin
     path('addAdmin', views.addAdmin, name = 'addAdmin'),
+#Category
     path('add-category/', views.add_category, name='add_category'),
     path('get-categories/', views.get_categories, name='get_categories'),
     path('get-category/', views.get_category, name='get_category'),
     path('category-count/', views.category_count_view, name='category-count'),
     path('get-usercategory/', views.get_usercategory, name='usercategory'),
-    path('update-businesses/', views.update_businesses, name='update-businesses'),
 
-   #a busineess
+#a busineess
     path('create-business/', views.create_business, name='create_business'),
     path('get-business/', views.get_all_businesses, name='get_all_businesses'),
     path('get-specifibusiness/', views.get_business_by_id, name='get_business_by_id'),
@@ -32,6 +32,13 @@ urlpatterns = [
     path('fetch-more-businesses/', views.fetch_more_businesses_by_category, name='fetch-more-businesses'),
     path('delete-businessimage/', views.delete_businessimage, name='delete_image'),
     path('update-businessdata/',views.update_businessdata, name='update-business'),
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+    path('update-businesses/', views.update_businesses, name='update-businesses'),
+>>>>>>> f1d6ba63b40cdc28ebfcc3926504ed44645b8cba
+>>>>>>> dd6f0acd2a5c34ce3e3cccfdae645136fe15798f
 
 
 #Reviews    
@@ -39,7 +46,18 @@ urlpatterns = [
     path('create-review/', views.create_review, name='create-review'),
     path('get-reviews/', views.get_reviews, name='get_reviews_for_business'),
     path('update-reviews/', views.update_reviews, name='update_reviews'),
+<<<<<<< HEAD
     path('get-specificreview/', views.get_specific_review, name='get_specific_reciews'),
+=======
+<<<<<<< HEAD
+    path('get-specificreview/', views.get_specific_review, name='get_specific_reciews'),
+=======
+<<<<<<< HEAD
+=======
+    path('get-specificreview/', views.get_specific_review, name='get_specific_reciews'),
+>>>>>>> d1d20ab32f1b2e635df9fabaff774d28803f5b8c
+>>>>>>> f1d6ba63b40cdc28ebfcc3926504ed44645b8cba
+>>>>>>> dd6f0acd2a5c34ce3e3cccfdae645136fe15798f
 
     path('get-business-rating-stats/', views.get_business_rating_stats, name='get-business-rating-stats'),
     path('toggle-favorite/', views.toggle_favorite, name='toggle_favorite'),
@@ -55,8 +73,21 @@ urlpatterns = [
     path('update-user/', views.update_user, name='update_user'),
     path('get-all-users/', views.get_all_users, name='get_all_users'),
     path('fetch-favorites/', views.fetch_favorites_for_user, name='fetch_favorites_for_user'),
+<<<<<<< HEAD
     path('delete-review-image/', views.delete_review_image, name='delete-review-image'),
     path('update-reviewdata/',views.update_review_data, name='update-review-image'),
+=======
+<<<<<<< HEAD
+    path('delete-review-image/', views.delete_review_image, name='delete-review-image'),
+    path('update-reviewdata/',views.update_review_data, name='update-review-image'),
+=======
+<<<<<<< HEAD
+=======
+    path('delete-review-image/', views.delete_review_image, name='delete-review-image'),
+    path('update-reviewdata/',views.update_review_data, name='update-review-image'),
+>>>>>>> d1d20ab32f1b2e635df9fabaff774d28803f5b8c
+>>>>>>> f1d6ba63b40cdc28ebfcc3926504ed44645b8cba
+>>>>>>> dd6f0acd2a5c34ce3e3cccfdae645136fe15798f
 
     #  path("google/", GoogleLoginView.as_view(), name = "google"),
     # path('api/auth/password/reset/confirm/<str:uidb64>/<str:token>', PasswordResetConfirmView.as_view(),name='password_reset_confirm'),
