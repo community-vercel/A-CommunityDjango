@@ -114,7 +114,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'communityapp',
         'USER': 'adiil',
-        'PASSWORD': 'communityapp',
+        'PASSWORD': 'community',
         'HOST': 'localhost',  # Use the IP address of your PostgreSQL server if it's not local
         'PORT': '5432',       # Default PostgreSQL port
     }
@@ -178,6 +178,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 CSRF_TRUSTED_ORIGINS = [
 <<<<<<< HEAD
+<<<<<<< HEAD
     "http://localhost:3000",
     "http://165.22.178.52/django/"
     
@@ -187,6 +188,15 @@ CSRF_TRUSTED_ORIGINS = [
     "http://165.22.178.52",
 "http://165.22.178.52/django",
 >>>>>>> 735ccfcc59b37e8279312fa3cb97fe5b4b3bea45
+=======
+
+    # Add the origin of your frontend application
+
+    "http://localhost:3000",  # Add the origin of your frontend application
+    "http://165.22.178.52",
+"http://165.22.178.52/django",
+
+>>>>>>> d1d20ab32f1b2e635df9fabaff774d28803f5b8c
     # Add other trusted origins if necessary
 ]
 
