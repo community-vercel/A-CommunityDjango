@@ -33,6 +33,7 @@ from django.shortcuts import get_list_or_404
 from django.core.files.base import ContentFile
 from django.db.models import Avg, Count
 
+import os
 
 from django.core.mail import send_mail
 from django.conf import settings
@@ -41,6 +42,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 
 
 from django.template.loader import render_to_string
+from django.db import transaction
 
 from django.contrib.sites.shortcuts import get_current_site
 from django.utils.translation import gettext_lazy as _
@@ -255,83 +257,103 @@ def update_role_status(request):
     return JsonResponse(context, safe=False)
 
 
+# class CustomLoginView(LoginView):
+#     def post(self, request, *args, **kwargs):
+#         response = super().post(request, *args, **kwargs)
+#         user = request.user
+
+#         # Add user data and session information to the response
+#         response_data = {
+#             'user': {
+#                 'id': user.id,
+#                 'username': user.username,
+#                 'email': user.email,
+#                 'role':user.role,
+#             },
+#             'session_key': request.session.session_key,
+#             'token': response.data.get('key') 
+#         }
+
 class CustomLoginView(LoginView):
     def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-        user = request.user
+        try:
+            response = super().post(request, *args, **kwargs)
+            
+            if response.status_code == status.HTTP_200_OK:
+                user = request.user
 
-        # Add user data and session information to the response
-        response_data = {
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-                'role':user.role,
-            },
-            'session_key': request.session.session_key,
-            'token': response.data.get('key') 
-        }
+                # Handle login data
+                access_token = response.data.get('access_token')
+                refresh_token = response.data.get('refresh_token')
+                expires_at = response.data.get('expires_at')
+                expires_in = response.data.get('expires_in')
+                token_type = response.data.get('token_type')
 
-        return Response(response_data, status=status.HTTP_200_OK)
-class CustomLoginView(LoginView):
-    def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
+                # Store tokens and information in session
+                request.session['access_token'] = access_token
+                request.session['refresh_token'] = refresh_token
+                request.session['expires_at'] = expires_at
+                request.session['expires_in'] = expires_in
+                request.session['token_type'] = token_type
 
-        if response.status_code == status.HTTP_200_OK:
-            logger.debug(f"Login response data: {response.data}")
-            print(f"Login response data: {response.data}")
-            # Assume response.data contains the tokens and related information
-            access_token = response.data.get('access_token')
-            refresh_token = response.data.get('refresh_token')
-            expires_at = response.data.get('expires_at')
-            expires_in = response.data.get('expires_in')
-            token_type = response.data.get('token_type')
+                # Prepare response data
+                response_data = {
+                    'user': {
+                        'id': user.id,
+                        'username': user.username,
+                        'email': user.email,
+                        'role': user.role,
+                        'user_metadata': {
+                            'email': user.email,
+                            'email_verified': user.is_active,
+                            'full_name': user.name,
+                            'phone_verified': False,
+                            'role': user.role,
+                        },
+                    },
+                    'session': {
+                        'session_key': request.session.session_key,
+                        'access_token': access_token,
+                        'refresh_token': refresh_token,
+                        'expires_at': expires_at,
+                        'expires_in': expires_in,
+                        'token_type': token_type,
+                    },
+                    'user_meta': {
+                        'id': user.id,
+                        'role': user.role,
+                        'address': user.address,
+                    }
+                }
 
-            # Store these tokens and information in the session
-            request.session['access_token'] = access_token
-            request.session['refresh_token'] = refresh_token
-            request.session['expires_at'] = expires_at
-            request.session['expires_in'] = expires_in
-            request.session['token_type'] = token_type
+                # Add success message and code
+                response_data.update({
+                    'ErrorCode': 0,
+                    'ErrorMsg': 'Login Successfully'
+                })
 
-            # Add user data and session information to the response
-            user = request.user
-            response_data = {
-                'user': {
-                    'id': user.id,
-                    'username': user.username,
-                    'email': user.email,
-                    'role':user.role,
-                     'user_metadata': {
-            "email":user.email,
-            "email_verified": user.is_active,
-            "full_name": user.name,
-            "phone_verified": False,
-            'role':user.role,
-           
-        }
-                },
-               'session':{
-                 'session_key': request.session.session_key,
-                'access_token': access_token,
-                'refresh_token': refresh_token,
-                'expires_at': expires_at,
-                'expires_in': expires_in,
-                'token_type': token_type
-               },
-               'user_meta':{
- 
-'id': user.id,
- 'role': user.role, 
- 'address':user.address
+                # Return success response
+                return JsonResponse(response_data, status=status.HTTP_200_OK)
 
-               }
-            }
+            # If login fails (e.g., wrong credentials)
+            return JsonResponse({
+                'ErrorCode': 1,
+                'ErrorMsg': 'Invalid credentials or login failed.'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        except ValueError as e:
+            # Handle 400 errors (bad request)
+            return JsonResponse({
+                'ErrorCode': 1,
+                'ErrorMsg': f'Bad Request: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-            return Response(response_data, status=status.HTTP_200_OK)
-
-        return response
-
+        except Exception as e:
+            # Catch any other server-side errors
+            return JsonResponse({
+                'ErrorCode': 1,
+                'ErrorMsg': f'Internal Server Error: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET', 'POST'])
 @permission_classes((IsAuthenticated,))
@@ -533,9 +555,17 @@ def create_business(request):
                 CategoryBusiness.objects.create(business=business, category_id=category_id)
 
             # Add tags
-            tags = form_data.get('b_tags')
-            if tags:
-                TagBusiness.objects.create(business=business, tag=tags)
+            n_tags = form_data.get('b_tags')
+            if n_tags:
+                tags = n_tags.split(",")  # Convert tags string back to list
+            # Remove existing tags for this business
+                TagBusiness.objects.filter(business=business).delete()
+                # Add new tags
+                for tag in tags:
+                    TagBusiness.objects.create(business=business, tag=tag.strip())
+
+            # if tags:
+            #     TagBusiness.objects.create(business=business, tag=tags)
 
             # Upload and save logo
             if logo:
@@ -668,8 +698,11 @@ def get_business_by_id(request):
         
         # Retrieve related data
         categories = CategoryBusiness.objects.filter(business_id=business_id).values('category__id', 'category__name')
-        reviews = Review.objects.filter(business_id=business_id, status='1').values()
-        stats = Review.objects.filter(business_id=business_id, status=Review.APPROVED).aggregate(
+        reviews = Review.objects.filter(business_id=business_id, status='1',isArchived=False).values()
+# Retrieve all tags associated with the given business ID
+        tags = TagBusiness.objects.filter(business_id=business_id).values_list('tag', flat=True)
+        print(tags)
+        stats = Review.objects.filter(business_id=business_id, status=Review.APPROVED,isArchived=False).aggregate(
             avg_rating=Avg('rating'),
             total_count=Count('id')
         )
@@ -722,6 +755,7 @@ def get_business_by_id(request):
                 "categories": list(categories),
                 "reviews": list(reviews),
                 "statistics": statistics,
+                "tags":list(tags),
             }
         }
 
@@ -734,7 +768,161 @@ def get_business_by_id(request):
             "ErrorCode": 2,  # Error code
             "ErrorMsg": str(e),
         })
+@api_view(['GET', 'POST'])
+def delete_businessimage(request):
+    try:
+        data = json.loads(request.body)
+        image_url = data.get('image_url')
+        business_id = data.get('business_id')
 
+        if not image_url or not business_id:
+            return JsonResponse({"ErrorCode": 1, "ErrorMsg": "Missing parameters."}, status=400)
+
+        # Remove image from storage
+        image_path = image_url.replace("/api/media/", "")
+        if default_storage.exists(image_path):
+            default_storage.delete(image_path)
+        else:
+            return JsonResponse({"ErrorCode": 1, "ErrorMsg": "Image not found in storage."}, status=404)
+
+        # Update database
+        business = Business.objects.get(id=business_id)
+        current_images = business.images.split(",") if business.images else []
+        updated_images = [img for img in current_images if img != image_url]
+        business.images = ",".join(updated_images)
+        business.save()
+
+        return JsonResponse({"ErrorCode": 0, "ErrorMsg": "Image deleted successfully."})
+
+    except Business.DoesNotExist:
+        return JsonResponse({"ErrorCode": 1, "ErrorMsg": "Business not found."}, status=404)
+    except Exception as e:
+        return JsonResponse({"ErrorCode": 1, "ErrorMsg": str(e)}, status=500)
+
+@api_view(['GET', 'POST'])
+def update_businessdata(request):
+    try:
+        if request.method == 'POST':
+            # Handle files
+            logo = request.FILES.get('logo')
+            images = request.FILES.getlist('images')
+
+            # Handle business data
+            business_data_json = request.POST.get('businessData')
+            if not business_data_json:
+                return JsonResponse({
+                    "ErrorCode": 1,
+                    "ErrorMsg": "Business data is missing."
+                }, status=400)
+            
+            business_data = json.loads(business_data_json)
+            business_id = business_data.get('id')
+            if not business_id:
+                return JsonResponse({
+                    "ErrorCode": 1,
+                    "ErrorMsg": "Business ID is missing."
+                }, status=400)
+            
+            try:
+                business_instance = Business.objects.get(id=business_id)
+            except Business.DoesNotExist:
+                return JsonResponse({
+                    "ErrorCode": 1,
+                    "ErrorMsg": "Business not found."
+                }, status=404)
+            
+            # Handle logo
+            if logo:
+                logo_path = f'business/{business_instance.id}/logo_{logo.name}'
+                default_storage.save(logo_path, ContentFile(logo.read()))
+                business_instance.logo = logo_path
+            
+            # Handle images
+            image_urls = []
+            for img in images:
+                image_path = f'business/{business_instance.id}/images_{img.name}'
+                default_storage.save(image_path, ContentFile(img.read()))
+                image_urls.append(image_path)
+            
+            business_instance.images = ','.join(image_urls)
+            
+            # Update business instance with other data
+            business_instance.name = business_data.get('name', business_instance.name)
+            business_instance.description = business_data.get('description', business_instance.description)
+            business_instance.phone = business_data.get('phone', business_instance.phone)
+            business_instance.email = business_data.get('email', business_instance.email)
+            business_instance.website = business_data.get('website', business_instance.website)
+            business_instance.operating_hours = business_data.get('operating_hours', business_instance.operating_hours)
+            business_instance.location = business_data.get('location', business_instance.location)
+            business_instance.city = business_data.get('city', business_instance.city)
+            business_instance.state = business_data.get('state', business_instance.state)
+            # business_instance.country = business_data.get('country', business_instance.country) # Uncomment if needed
+            business_instance.zip = business_data.get('zip', business_instance.zip)
+            business_instance.user_id = business_data.get('user_id', business_instance.user_id)
+            business_instance.socials = business_data.get('socials', business_instance.socials)
+            business_instance.discount_code = business_data.get('discount_code', business_instance.discount_code)
+            business_instance.discount_message = business_data.get('discount_message', business_instance.discount_message)
+            business_instance.language = business_data.get('language', business_instance.language)
+            
+
+
+# Handle tags
+            # n_tags = business_data.get('tags', [])
+            # if isinstance(n_tags, str):
+            #     # Convert tags string back to list if it is a string
+            #     tags = [tag.strip() for tag in n_tags.split(",") if tag.strip()]
+            # elif isinstance(n_tags, list):
+            #     # Use tags directly if it's already a list
+            #     tags = [tag.strip() for tag in n_tags if tag.strip()]
+            # else:
+            #     # Default to an empty list if tags is neither a string nor a list
+            #     tags = []
+
+            # # Remove existing tags for this business
+            # TagBusiness.objects.filter(business=business_instance).delete()
+
+            # # Add new tags
+            # for tag in tags:
+            #     TagBusiness.objects.create(business=business_instance, tag=tag)
+
+            # Handle tags and categories
+            n_tags = business_data.get('tags', [])
+            if n_tags:
+                tags = n_tags.split(",")  # Convert tags string back to list
+            # Remove existing tags for this business
+                TagBusiness.objects.filter(business=business_instance).delete()
+                # Add new tags
+                for tag in tags:
+                    TagBusiness.objects.create(business=business_instance, tag=tag.strip())
+
+            
+            
+            
+            categories = business_data.get('categories', [])
+            if isinstance(categories, list):
+                business_instance.categories = ','.join(map(str, categories))
+            else:
+                business_instance.categories = ''
+
+            # Save the updated business instance
+            business_instance.save()
+            
+            return JsonResponse({
+                "ErrorCode": 0,
+                "ErrorMsg": "Business updated successfully."
+            })
+
+        else:
+            return JsonResponse({
+                "ErrorCode": 1,
+                "ErrorMsg": "Invalid request method."
+            }, status=405)
+
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 1,
+            "ErrorMsg": str(e)
+        }, status=500)
 @api_view(['GET', 'POST'])
 def update_businesses(request):
     try:
@@ -840,7 +1028,9 @@ def create_review(request):
             image_files = request.FILES.getlist('images')
             image_urls = []
             for image in image_files:
-                image_name = f"{review_instance.id}/{image.name}"
+                # image_name = f"{review_instance.id}/{image.name}"
+                image_name = f'reviews/{review_instance.id}/images_{image.name}'
+
                 image_path = default_storage.save(image_name, ContentFile(image.read()))
                 image_url = default_storage.url(image_path)
                 image_urls.append(image_url)
@@ -875,9 +1065,9 @@ def get_reviews(request):
     try:
         # Retrieve all reviews including related business data
         reviews = Review.objects.filter(isArchived=False).select_related('business').values(
-            'id', 'title', 'review','email', 'status','rating', 'review_files', 'created_at',
-            'business__id',  # Include related business ID
-            'business__name'  # Include related business name
+            'id', 'title','user__name','user__id','user__email', 'review','email', 'status','rating', 'review_files', 'created_at',
+            'business__id',  
+            'business__name'  
         )
         
         return JsonResponse({
@@ -922,6 +1112,160 @@ def update_reviews(request):
             "ErrorCode": 1,  # Error code
             "ErrorMsg": str(e),
         }, status=500)
+
+
+
+@api_view(['POST'])
+def update_review_data(request):
+    try:
+        # Get the review data from the request
+        review_data_json = request.POST.get('reviewData')
+        if not review_data_json:
+            return JsonResponse({
+                "ErrorCode": 1,
+                "ErrorMsg": "Review data is missing."
+            }, status=400)
+        
+        # Parse the review data
+        review_data = json.loads(review_data_json)
+        review_id = review_data.get('id')
+        title = review_data.get('title')
+        review = review_data.get('review')
+        rating = review_data.get('rating')
+        review_files = review_data.get('review_files', '')  # Existing image URLs (comma-separated)
+
+        # Retrieve the review instance
+        review_instance = Review.objects.get(id=review_id)
+
+        # Update review details (title, review, rating)
+        if title is not None:
+            review_instance.title = title
+        if review is not None:
+            review_instance.review = review
+        if rating is not None:
+            review_instance.rating = rating
+
+        # Existing image URLs split into a list
+        existing_images = review_files.split(",") if review_files else []
+
+        # Handle the new image files from request.FILES (if any)
+        image_files = request.FILES.getlist('images')
+        new_image_urls = []
+
+        for image in image_files:
+            # Save the new image and get its URL
+            image_name = f"reviews/{review_instance.id}/images_{image.name}"
+            image_path = default_storage.save(image_name, ContentFile(image.read()))
+            image_url = default_storage.url(image_path)
+            new_image_urls.append(image_url)
+
+        # Combine existing images and new images
+        all_images = list(set(existing_images + new_image_urls))  # Use set to avoid duplicates
+        review_instance.review_files = ",".join(all_images)  # Store as a comma-separated string
+
+        # Save the updated review instance
+        review_instance.save()
+
+        # Return success response
+        return JsonResponse({
+            "ErrorCode": 0,
+            "ErrorMsg": "Review updated successfully."
+        })
+
+    except Review.DoesNotExist:
+        return JsonResponse({
+            "ErrorCode": 1,
+            "ErrorMsg": "Review not found."
+        }, status=404)
+
+    except Exception as e:
+        return JsonResponse({
+            "ErrorCode": 1,
+            "ErrorMsg": str(e)
+        }, status=500)
+@api_view(['GET', 'POST'])
+def get_specific_review(request):
+    
+    review_id=request.data.get('id')
+    try:
+        # Fetch the review by ID
+        review = Review.objects.select_related('business','user').get(id=review_id)
+
+        # Prepare the data for response
+        review_data = {
+            "id": review.id,
+            "title": review.title,
+            "rating": review.rating,
+            "review": review.review,
+            "review_files":review.review_files,
+            "status": review.status,
+            "email":review.user.username,
+            "business": {
+                "id": review.business.id,
+                "name": review.business.name
+            }
+        }
+
+        return JsonResponse({
+            "data": review_data,
+            "status": "success"
+        })
+
+    except Review.DoesNotExist:
+        return JsonResponse({
+            "error": "Review not found",
+            "status": "error"
+        }, status=404)
+
+    except Exception as e:
+        return JsonResponse({
+            "error": str(e),
+            "status": "error"
+        }, status=500)
+
+
+@csrf_exempt
+@transaction.atomic
+def delete_review_image(request):
+    if request.method == 'POST':
+        try:
+            review_id = request.POST.get('review_id')
+            image_url = request.POST.get('image_url')
+            
+            if not review_id or not image_url:
+                return JsonResponse({"error": "Invalid request data"}, status=400)
+
+            # Extract the image file name from the URL
+            image_name = image_url
+            print(image_name)
+
+            # Remove the image file from storage
+            image_path = os.path.join(settings.MEDIA_ROOT, 'reviews', image_name)
+            print(image_path)
+            print(os.path)
+            if os.path.exists(image_path):
+                os.remove(image_path)
+
+            # Update the review record
+            review = Review.objects.get(id=review_id)
+            print(review)
+            current_images = review.review_files.split(",")
+            print(current_images)
+
+            updated_images = [img for img in current_images if img != image_name]
+            print(updated_images)
+
+            review.review_files = ",".join(updated_images)
+            review.save()
+
+            return JsonResponse({"message": "Image deleted successfully"})
+        except Review.DoesNotExist:
+            return JsonResponse({"error": "Review not found"}, status=404)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
 @api_view(['GET', 'POST'])
 def archive_business(request):
     try:
@@ -967,6 +1311,8 @@ def get_businesses_by_category(request):
         businesses_data = [
                 {
                 "category_name":cb.category.name,
+                "cover":cb.category.cover,
+
                 "business_id": cb.business.id,
                 "business_name": cb.business.name,
                 "business_approved": cb.business.approved,
@@ -1155,12 +1501,10 @@ def check_and_toggle_favorite(request):
 
         if favorite:
             # If favorite exists, delete it (unfavorite)
-            favorite.delete()
-            is_favorite = False
+            is_favorite = True
         else:
             # If favorite does not exist, create it (favorite)
-            Favorite.objects.create(user_id=user_id, business_id=business_id)
-            is_favorite = True
+            is_favorite = False
 
         return JsonResponse({
             'ErrorCode': 0,
@@ -1293,7 +1637,7 @@ def fetch_favorites_for_user(request):
 
     try:
         # Fetch the favorites and related business data
-        favorites = Favorite.objects.filter(user_id=user_id).select_related('business')
+        favorites = Favorite.objects.filter(user_id=user_id,business__isArchived=False).select_related('business')
         favorites_data = [
             {
                 'id': favorite.id,
@@ -1342,7 +1686,7 @@ def category_count_view(request):
 
     # Fetch counts for each category
     category_counts = CategoryBusiness.objects.filter(
-        business__approved=True
+      business__isArchived=False,business__approved=True
     ).values('category_id').annotate(count=models.Count('category_id'))
 
     # Convert category counts to a dictionary
@@ -1360,3 +1704,108 @@ def category_count_view(request):
         })
 
     return JsonResponse(data, safe=False)
+
+@csrf_exempt
+def add_user(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+
+            # Create a new user
+            user = User(
+                extPosId=data.get('extPosId'),
+                name=data.get('name'),
+                password=data.get('password'),
+                email=data.get('email'),
+                username=data.get('email'),
+                phone=data.get('phone'),
+                gender=data.get('gender'),
+                address=data.get('address'),
+                role=data.get('role', User.CUSTOMER),  # Default to CUSTOMER if not provided
+                status=data.get('status', User.INACTIVE),  # Default to ACTIVE if not provided
+                is_first_login=data.get('is_first_login', True),
+                is_active=data.get('active', True),
+                is_staff=data.get('is_staff', False),
+                is_superuser=data.get('is_superuser', False),
+                roles=data.get('roles', [])
+            )
+            user.set_password(data.get('password'))  # Hash the password
+            user.save()
+
+            return JsonResponse({'ErrorCode': 0, 'ErrorMsg': 'User created successfully.'})
+
+        except Exception as e:
+            return JsonResponse({'ErrorCode': 1, 'ErrorMsg': str(e)})
+    
+    return JsonResponse({'ErrorCode': 1, 'ErrorMsg': 'Invalid request method.'})
+
+
+@csrf_exempt
+@api_view(['GET', 'POST'])
+def update_user(request):
+    
+    user_id=request.data.get('id')
+    user_id2=request.data.get('name')
+
+    print(user_id2)
+    if request.method == 'POST':
+        try:
+            user = User.objects.get(id=user_id)
+
+            # Update user fields
+            user.extPosId = request.data.get('extPosId', user.extPosId)
+            user.name = request.data.get('name', user.name)
+            user.email = request.data.get('email', user.email)
+            user.username = request.data.get('username', user.email)
+            user.phone = request.data.get('phone', user.phone)
+            user.address = request.data.get('address', user.address)
+            user.role = request.data.get('role', user.role)
+            user.status = request.data.get('status', user.status)
+            user.is_first_login =request.data.get('is_first_login', user.is_first_login)
+            user.is_active = request.data.get('is_active', user.is_active)
+            user.is_staff = request.data.get('is_staff', user.is_staff)
+            user.is_superuser = request.data.get('is_superuser', user.is_superuser)
+            user.roles = request.data.get('roles', user.roles)
+
+            if 'password' in request.data:
+                user.set_password(user.data.get('password'))  # Hash the password if it's being updated
+
+            user.save()
+
+            return JsonResponse({'ErrorCode': 0, 'ErrorMsg': 'User updated successfully.'})
+
+        except User.DoesNotExist:
+            return JsonResponse({'ErrorCode': 1, 'ErrorMsg': 'User not found.'})
+        except Exception as e:
+            return JsonResponse({'ErrorCode': 1, 'ErrorMsg': str(e)})
+
+    return JsonResponse({'ErrorCode': 1, 'ErrorMsg': 'Invalid request method.'})
+
+
+@api_view(['GET', 'POST'])
+def FetchUserDetailsView(request):
+    user_id=request.data.get('id')
+    try:
+        user = get_object_or_404(User, pk=user_id)
+        data = {
+            'id': user.id,
+            "email": user.email,
+            "fullname":user.name,
+            "name":user.name,
+            "phone": user.phone,
+            "address": user.address,
+            "role": user.role,
+            "active": user.is_active,
+            "roles":user.roles,
+            
+        }
+        
+        return JsonResponse({
+            'ErrorCode': 0,  # Success code
+            'ErrorMsg': 'User retrieved successfully.',
+            'data': data
+          
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
