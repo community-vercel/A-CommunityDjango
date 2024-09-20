@@ -32,6 +32,7 @@ urlpatterns = [
     path('fetch-more-businesses/', views.fetch_more_businesses_by_category, name='fetch-more-businesses'),
     path('delete-businessimage/', views.delete_businessimage, name='delete_image'),
     path('update-businessdata/',views.update_businessdata, name='update-business'),
+
     path('update-businesses/', views.update_businesses, name='update-businesses'),
 
 
@@ -40,6 +41,9 @@ urlpatterns = [
     path('create-review/', views.create_review, name='create-review'),
     path('get-reviews/', views.get_reviews, name='get_reviews_for_business'),
     path('update-reviews/', views.update_reviews, name='update_reviews'),
+
+    path('get-specificreview/', views.get_specific_review, name='get_specific_reciews'),
+
     path('get-specificreview/', views.get_specific_review, name='get_specific_reciews'),
 
     path('get-business-rating-stats/', views.get_business_rating_stats, name='get-business-rating-stats'),
@@ -56,6 +60,10 @@ urlpatterns = [
     path('update-user/', views.update_user, name='update_user'),
     path('get-all-users/', views.get_all_users, name='get_all_users'),
     path('fetch-favorites/', views.fetch_favorites_for_user, name='fetch_favorites_for_user'),
+
+    path('delete-review-image/', views.delete_review_image, name='delete-review-image'),
+    path('update-reviewdata/',views.update_review_data, name='update-review-image'),
+
     path('delete-review-image/', views.delete_review_image, name='delete-review-image'),
     path('update-reviewdata/',views.update_review_data, name='update-review-image'),
 
