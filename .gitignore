@@ -22,6 +22,8 @@ env/
 # SQLite database
 *.sqlite3
 
+# Django migrations
+**/migrations/
 
 # Local environment variables
 .env
